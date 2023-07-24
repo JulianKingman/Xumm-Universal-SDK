@@ -50,6 +50,7 @@ enum Runtimes {
   cli = "cli",
   browser = "browser",
   xapp = "xapp",
+  reactnative = "reactnative",
 }
 
 type Runtime = Record<Runtimes, boolean>;
@@ -58,6 +59,7 @@ const _runtime: Runtime = {
   cli: false,
   browser: false,
   xapp: false,
+  reactnative: false,
 };
 
 interface Classes {
@@ -92,6 +94,10 @@ Object.assign(_runtime, {
 
 Object.assign(_runtime, {
   xapp: _runtime.browser && !!navigator.userAgent.match(/xumm\/xapp/i),
+});
+
+Object.assign(_runtime, {
+  reactnative: navigator.product === "ReactNative",
 });
 
 const runtime = (Object.keys(_runtime) as (keyof typeof Runtimes)[]).filter(
@@ -133,8 +139,8 @@ const readyPromises: Promise<any>[] = [];
  */
 type Promisified<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => infer R
-    ? (...args: A) => Promise<R>
-    : T[K];
+  ? (...args: A) => Promise<R>
+  : T[K];
 };
 
 /**
@@ -194,44 +200,44 @@ interface Environment {
   ott?: Promise<xAppOttData | undefined>;
   jwt?: Promise<
     | {
-        client_id: string;
-        scope?: string;
-        state?: string;
-        aud: string;
-        sub: string;
-        email?: string;
-        app_uuidv4: string;
-        app_name: string;
-        payload_uuidv4?: string;
-        usertoken_uuidv4?: string;
-        network_type?: string;
-        network_endpoint?: string;
-        iat: number;
-        exp: number;
-        iss: string;
-        usr?: string;
-        net?: string;
-        [key: string]: any;
-      }
+      client_id: string;
+      scope?: string;
+      state?: string;
+      aud: string;
+      sub: string;
+      email?: string;
+      app_uuidv4: string;
+      app_name: string;
+      payload_uuidv4?: string;
+      usertoken_uuidv4?: string;
+      network_type?: string;
+      network_endpoint?: string;
+      iat: number;
+      exp: number;
+      iss: string;
+      usr?: string;
+      net?: string;
+      [key: string]: any;
+    }
     | undefined
   >;
   openid?: Promise<
     | {
-        sub: string;
-        email: string;
-        picture: string;
-        account: string;
-        name: string;
-        domain?: string;
-        blocked: boolean;
-        source?: string;
-        kycApproved: boolean;
-        proSubscription: boolean;
-        networkType: string;
-        networkEndpoint: string;
-        profile?: XummProfile;
-        [key: string]: any;
-      }
+      sub: string;
+      email: string;
+      picture: string;
+      account: string;
+      name: string;
+      domain?: string;
+      blocked: boolean;
+      source?: string;
+      kycApproved: boolean;
+      proSubscription: boolean;
+      networkType: string;
+      networkEndpoint: string;
+      profile?: XummProfile;
+      [key: string]: any;
+    }
     | undefined
   >;
   bearer?: Promise<string>;
@@ -249,9 +255,8 @@ class UnifiedUserData {
     () =>
       _me?.picture ??
       (_jwtData?.sub ?? _me?.sub ?? _ott?.account_info?.account
-        ? `https://xumm.app/avatar/${
-            _jwtData?.sub ?? _me?.sub ?? _ott?.account_info?.account
-          }.png`
+        ? `https://xumm.app/avatar/${_jwtData?.sub ?? _me?.sub ?? _ott?.account_info?.account
+        }.png`
         : undefined)
   );
   public name = Asyncify<string | undefined>(
@@ -365,7 +370,7 @@ export class Xumm extends EventEmitter {
         this.apiKeyOrJwt = appId;
         if (!_runtime.cli)
           console.log("JWT expired, falling back to API KEY: " + appId);
-        if (_runtime.cli || _runtime.xapp) {
+        if (_runtime.cli || _runtime.xapp || _runtime.reactnative) {
           const error = new Error(
             "JWT Expired, cannot fall back to API credential: in CLI/xApp environment"
           );
@@ -465,13 +470,13 @@ export class Xumm extends EventEmitter {
           _runtime.xapp
             ? Promise.resolve()
             : new Promise((resolve: any) => {
-                if (_classes?.XummPkce) {
-                  this.user.account.then(() => resolve());
-                  _classes.XummPkce?.on("loggedout", () => resolve());
-                } else {
-                  resolve();
-                }
-              }),
+              if (_classes?.XummPkce) {
+                this.user.account.then(() => resolve());
+                _classes.XummPkce?.on("loggedout", () => resolve());
+              } else {
+                resolve();
+              }
+            }),
         ]).then(() => this.emit("ready")), // Constructor ready
       0
     );
@@ -607,7 +612,7 @@ export class Xumm extends EventEmitter {
       readyPromises.push(handleXappEvents());
 
       initOttJwtRuntime();
-    } else if (_runtime.browser) {
+    } else if (_runtime.browser || _runtime.reactnative) {
       /**
        * Browser (JWT, PKCE?)
        */
